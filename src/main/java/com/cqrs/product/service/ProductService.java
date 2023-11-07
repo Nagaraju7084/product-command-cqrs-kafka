@@ -1,10 +1,12 @@
 package com.cqrs.product.service;
 
 import com.cqrs.product.dto.ProductDto;
+import com.cqrs.product.dto.ProductEvent;
 import com.cqrs.product.entity.Product;
 import com.cqrs.product.repository.ProductRepository;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,8 +15,16 @@ public class ProductService {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private KafkaTemplate<String, Object> kafkaTemplate;
+
     public ProductDto createProduct(ProductDto productDto){
-        return entityToDto(productRepository.save(dtoToEntity(productDto)));
+        Product product = productRepository.save(dtoToEntity(productDto));
+        ProductEvent event = new ProductEvent();
+        event.setProduct(product);
+        event.setEventType("CreateProduct");
+        kafkaTemplate.send("product-event-topic",event);
+        return entityToDto(product);
     }
 
     public ProductDto updateProduct(ProductDto productDto, Long productId){
@@ -24,6 +34,10 @@ public class ProductService {
        product.setProductPrice(productDto.getProductPrice());
 
        Product updatedProduct = productRepository.save(product);
+       ProductEvent event = new ProductEvent();
+       event.setProduct(updatedProduct);
+       event.setEventType("UpdateProduct");
+       kafkaTemplate.send("product-event-topic",event);
        return entityToDto(updatedProduct);
     }
 
